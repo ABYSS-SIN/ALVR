@@ -100,25 +100,15 @@ macro_rules! dbg_decoder {
 
 #[derive(SettingsSchema, Serialize, Deserialize, Clone)]
 pub struct DebugGroupsConfig {
-    #[schema(flag = "steamvr-restart")]
     pub server_impl: bool,
-    #[schema(flag = "steamvr-restart")]
     pub client_impl: bool,
-    #[schema(flag = "steamvr-restart")]
     pub server_core: bool,
-    #[schema(flag = "steamvr-restart")]
     pub client_core: bool,
-    #[schema(flag = "steamvr-restart")]
     pub connection: bool,
-    #[schema(flag = "steamvr-restart")]
     pub sockets: bool,
-    #[schema(flag = "steamvr-restart")]
     pub server_gfx: bool,
-    #[schema(flag = "steamvr-restart")]
     pub client_gfx: bool,
-    #[schema(flag = "steamvr-restart")]
     pub encoder: bool,
-    #[schema(flag = "steamvr-restart")]
     pub decoder: bool,
 }
 

@@ -226,6 +226,30 @@ impl Launcher {
     }
 }
 
+// Launch SteamVR when a headset announces itself over mDNS, so the dashboard alone can stay resident.
+// ponytail: any ALVR client on the LAN triggers it, filter by trusted clients if that matters.
+pub fn spawn_client_watcher() {
+    thread::spawn(|| {
+        let Ok(receiver) = mdns_sd::ServiceDaemon::new()
+            .and_then(|daemon| daemon.browse(alvr_sockets::MDNS_SERVICE_TYPE))
+        else {
+            return;
+        };
+        let mut last_launch: Option<Instant> = None;
+        while let Ok(event) = receiver.recv() {
+            let cooling = last_launch.is_some_and(|t| t.elapsed() < Duration::from_secs(60));
+            if matches!(event, mdns_sd::ServiceEvent::ServiceResolved(_))
+                && !cooling
+                && !is_steamvr_running()
+            {
+                debug!("ALVR client found, launching SteamVR.");
+                last_launch = Some(Instant::now());
+                LAUNCHER.lock().launch_steamvr();
+            }
+        }
+    });
+}
+
 // Singleton with exclusive access
 pub static LAUNCHER: Mutex<Launcher> = Mutex::new(Launcher {
     _phantom: PhantomData,

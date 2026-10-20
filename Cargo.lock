@@ -303,6 +303,7 @@ dependencies = [
  "eframe",
  "env_logger",
  "ico",
+ "mdns-sd",
  "nvml-wrapper",
  "rand 0.10.1",
  "serde",
@@ -376,6 +377,26 @@ dependencies = [
  "tokio",
  "winres",
  "zip",
+]
+
+[[package]]
+name = "alvr_overlay"
+version = "21.0.0-dev14"
+dependencies = [
+ "alvr_events",
+ "alvr_gui_common",
+ "alvr_packets",
+ "alvr_server_io",
+ "alvr_session",
+ "anyhow",
+ "egui",
+ "egui-wgpu",
+ "libloading 0.8.9",
+ "png 0.18.1",
+ "pollster",
+ "serde_json",
+ "tungstenite",
+ "ureq",
 ]
 
 [[package]]

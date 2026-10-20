@@ -143,13 +143,18 @@ pub struct ReceiverData<H> {
     buffer: Vec<u8>,
     payload_offset: usize,
     used_buffer_queue: mpsc::Sender<Vec<u8>>,
-    had_packet_loss: bool,
+    lost_packets: u32,
     _phantom: PhantomData<H>,
 }
 
 impl<H> ReceiverData<H> {
     pub fn had_packet_loss(&self) -> bool {
-        self.had_packet_loss
+        self.lost_packets > 0
+    }
+
+    // Number of packets skipped right before this one
+    pub fn lost_packets(&self) -> u32 {
+        self.lost_packets
     }
 }
 
@@ -211,7 +216,7 @@ impl<H: DeserializeOwned + Serialize> StreamReceiver<H> {
             .recv_timeout(timeout)
             .handle_try_again()?;
 
-        let mut had_packet_loss = false;
+        let mut lost_packets = 0;
 
         if let Some(last_idx) = self.last_packet_index {
             // Use wrapping arithmetics
@@ -219,7 +224,7 @@ impl<H: DeserializeOwned + Serialize> StreamReceiver<H> {
                 Ordering::Equal => (),
                 Ordering::Greater => {
                     // Skipped some indices
-                    had_packet_loss = true
+                    lost_packets = packet.index.wrapping_sub(last_idx.wrapping_add(1))
                 }
                 Ordering::Less => {
                     // Old packet, discard
@@ -234,7 +239,7 @@ impl<H: DeserializeOwned + Serialize> StreamReceiver<H> {
             buffer: packet.buffer,
             payload_offset: self.payload_offset,
             used_buffer_queue: self.used_buffer_queue.clone(),
-            had_packet_loss,
+            lost_packets,
             _phantom: PhantomData,
         })
     }

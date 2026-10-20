@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use super::{INDENTATION_STEP, NestingInfo, SettingControl, reset};
 use crate::dashboard::components::{
     collapsible,
@@ -90,7 +91,7 @@ impl Control {
                     .horizontal(|ui| {
                         ui.add_space(INDENTATION_STEP * self.nesting_info.indentation_level as f32);
 
-                        let delete_element = ui.button("❌").clicked();
+                        let delete_element = ui.button(tr("❌")).clicked();
 
                         let up_down_result = up_down::up_down_buttons(ui, idx, self.controls.len());
 
@@ -125,8 +126,8 @@ impl Control {
                 idx += 1;
             }
 
-            ui.label(" ");
-            if ui.button("Add element").clicked() {
+            ui.label(tr(" "));
+            if ui.button(tr("Add element")).clicked() {
                 let mut session_content =
                     session_fragment["content"].as_array_mut().unwrap().clone();
                 session_content.push(session_fragment["element"].clone());

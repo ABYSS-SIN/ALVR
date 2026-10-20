@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use super::{INDENTATION_STEP, NestingInfo, SettingControl, collapsible, notice};
 use alvr_gui_common::{
     DisplayString,
@@ -40,8 +41,8 @@ impl Control {
             .map(|entry| {
                 let id = entry.name;
                 let display = super::get_display_name(&id, &entry.strings);
-                let help = entry.strings.get("help").cloned();
-                let notice = entry.strings.get("notice").cloned();
+                let help = entry.strings.get("help").map(|s| tr(s));
+                let notice = entry.strings.get("notice").map(|s| tr(s));
                 let hidden = entry.flags.contains("hidden");
                 let steamvr_restart_flag = entry.flags.contains("steamvr-restart");
                 let real_time_flag = entry.flags.contains("real-time");
@@ -121,14 +122,14 @@ impl Control {
                     if entry.steamvr_restart_flag {
                         ui.colored_label(WARNING_LIGHT, "⚠")
                             .on_hover_text_at_pointer(
-                                "Changing this setting will make SteamVR restart!\n\
-                                Please save your in-game progress first",
+                                tr("Changing this setting will make SteamVR restart!\n\
+                                Please save your in-game progress first"),
                             );
                     }
                     if entry.real_time_flag {
                         // The emoji is blue but it will be green in the UI
                         ui.colored_label(OK_GREEN, "🔵").on_hover_text_at_pointer(
-                            "This setting can be changed in real-time during streaming!",
+                            tr("This setting can be changed in real-time during streaming!"),
                         );
                     }
                 });
@@ -138,7 +139,7 @@ impl Control {
 
                     ui.end_row();
 
-                    ui.label(" ");
+                    ui.label(tr(" "));
                 }
 
                 request = entry

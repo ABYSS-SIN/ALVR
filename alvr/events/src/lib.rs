@@ -10,6 +10,7 @@ pub struct StatisticsSummary {
     pub video_packets_per_sec: usize,
     pub video_mbytes_total: usize,
     pub video_mbits_per_sec: f32,
+    pub video_packet_loss_percent: f32,
     pub total_latency_ms: f32,
     pub network_latency_ms: f32,
     pub encode_latency_ms: f32,

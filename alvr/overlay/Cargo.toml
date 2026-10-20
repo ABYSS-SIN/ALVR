@@ -1,0 +1,25 @@
+[package]
+name = "alvr_overlay"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+alvr_events.workspace = true
+alvr_gui_common.workspace = true
+alvr_packets.workspace = true
+alvr_session.workspace = true
+
+anyhow = "1"
+egui = "0.35"
+egui-wgpu = "0.35"
+libloading = "0.8"
+pollster = "0.4"
+png = "0.18"
+serde_json = "1"
+tungstenite = "0.29"
+ureq = { version = "3", features = ["json"] }
+
+[dev-dependencies]
+alvr_server_io.workspace = true

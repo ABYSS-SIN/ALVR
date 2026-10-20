@@ -150,12 +150,16 @@ pub fn create_recording_file(connection_context: &ConnectionContext, settings: &
     }
 }
 
-pub fn notify_restart_driver() {
-    if sysinfo::System::new_all()
+// The dashboard is the one restarting SteamVR
+pub fn can_restart_driver() -> bool {
+    sysinfo::System::new_all()
         .processes_by_name(OsStr::new(&afs::dashboard_fname()))
         .next()
         .is_some()
-    {
+}
+
+pub fn notify_restart_driver() {
+    if can_restart_driver() {
         alvr_events::send_event(EventType::ServerRequestsSelfRestart);
     } else {
         error!("Cannot restart SteamVR. No dashboard process found on local device.");

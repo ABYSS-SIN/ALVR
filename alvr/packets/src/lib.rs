@@ -207,6 +207,9 @@ pub enum ClientControlPacket {
     ProximityState(bool),
     Reserved(String),
     ReservedBuffer(Vec<u8>),
+    // Added at the end: clients that never send it (stock ones) stay compatible.
+    // Cumulative stream packet counters since the connection started.
+    PacketLoss { received: u64, lost: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

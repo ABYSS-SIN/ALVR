@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use eframe::{
     egui::{self, Button, Layout, Ui},
     emath::Align,
@@ -15,10 +16,10 @@ pub fn up_down_buttons(ui: &mut Ui, index: usize, count: usize) -> UpDownResult 
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         let up_clicked = ui
-            .add_visible(index > 0, Button::new("⬆").small())
+            .add_visible(index > 0, Button::new(tr("⬆")).small())
             .clicked();
         let down_clicked = ui
-            .add_visible(index < count - 1, Button::new("⬇").small())
+            .add_visible(index < count - 1, Button::new(tr("⬇")).small())
             .clicked();
 
         if up_clicked {

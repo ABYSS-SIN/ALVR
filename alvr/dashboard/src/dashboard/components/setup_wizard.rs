@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use crate::dashboard::ServerRequest;
 use eframe::{
     egui::{Button, Label, Layout, RichText, Ui},
@@ -12,23 +13,21 @@ pub enum SetupWizardRequest {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
     Welcome = 0,
-    ResetSettings = 1,
-    HardwareRequirements = 2,
-    SoftwareRequirements = 3,
-    Firewall = 4,
-    Recommendations = 5,
-    Finished = 6,
+    HardwareRequirements = 1,
+    SoftwareRequirements = 2,
+    Firewall = 3,
+    Recommendations = 4,
+    Finished = 5,
 }
 
 fn index_to_page(index: usize) -> Page {
     match index {
         0 => Page::Welcome,
-        1 => Page::ResetSettings,
-        2 => Page::HardwareRequirements,
-        3 => Page::SoftwareRequirements,
-        4 => Page::Firewall,
-        5 => Page::Recommendations,
-        6 => Page::Finished,
+        1 => Page::HardwareRequirements,
+        2 => Page::SoftwareRequirements,
+        3 => Page::Firewall,
+        4 => Page::Recommendations,
+        5 => Page::Finished,
         _ => panic!("Invalid page index"),
     }
 }
@@ -46,7 +45,7 @@ fn page_content(
             ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                 ui.add_space(15.0);
                 ui.heading(RichText::new(subtitle).size(20.0));
-                ui.add(Label::new(RichText::new(paragraph).size(14.0)).wrap());
+                ui.add(Label::new(RichText::new(tr(paragraph)).size(14.0)).wrap());
                 ui.add_space(30.0);
                 ui.vertical_centered(interactible_content);
             });
@@ -72,12 +71,12 @@ impl SetupWizard {
             ui.add_space(60.0);
             ui.vertical(|ui| {
                 ui.add_space(30.0);
-                ui.heading(RichText::new("Welcome to ALVR").size(30.0));
+                ui.heading(RichText::new(tr("Welcome to ALVR")).size(30.0));
                 ui.add_space(5.0);
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.add_space(15.0);
-                if ui.button("❌").clicked() {
+                if ui.button(tr("❌")).clicked() {
                     request = Some(SetupWizardRequest::Close { finished: false });
                 }
             })
@@ -86,32 +85,20 @@ impl SetupWizard {
         match &self.page {
             Page::Welcome => page_content(
                 ui,
-                "This setup wizard will help you setup ALVR.",
+                &tr("This setup wizard will help you setup ALVR."),
                 "",
                 |_| (),
             ),
-            Page::ResetSettings => page_content(
-                ui,
-                "Reset settings",
-                "It is recommended to reset your settings everytime you update ALVR.",
-                |ui| {
-                    if ui.button("Reset settings").clicked() {
-                        request = Some(SetupWizardRequest::ServerRequest(
-                            ServerRequest::UpdateSession(Box::default()),
-                        ));
-                    }
-                },
-            ),
             Page::HardwareRequirements => page_content(
                 ui,
-                "Hardware requirements",
+                &tr("Hardware requirements"),
                 r"ALVR requires a dedicated and recent graphics card. Low-end Intel integrated graphics may fail to work.
 Make sure you have at least one output audio device.",
                 |_| (),
             ),
             Page::SoftwareRequirements => page_content(
                 ui,
-                "Software requirements",
+                &tr("Software requirements"),
                 if cfg!(windows) {
                     r"To stream the headset microphone on Windows you need to install Virtual Audio Cable, VB-Cable, Voicemeeter"
                 } else if cfg!(target_os = "linux") {
@@ -122,7 +109,7 @@ Make sure you have at least one output audio device.",
                 #[allow(unused_variables)]
                 |ui| {
                     #[cfg(windows)]
-                    if ui.button("Download Virtual Audio Cable (Lite)").clicked() {
+                    if ui.button(tr("Download Virtual Audio Cable (Lite)")).clicked() {
                         ui.ctx().open_url(eframe::egui::OpenUrl::same_tab(
                             "https://software.muzychenko.net/freeware/vac470lite.zip",
                         ));
@@ -131,11 +118,11 @@ Make sure you have at least one output audio device.",
             ),
             Page::Firewall => page_content(
                 ui,
-                "Firewall",
+                &tr("Firewall"),
                 r"To communicate with the headset, some firewall rules need to be set.
 This requires administrator rights!",
                 |ui| {
-                    if ui.button("Add firewall rules").clicked() {
+                    if ui.button(tr("Add firewall rules")).clicked() {
                         request = Some(SetupWizardRequest::ServerRequest(
                             ServerRequest::AddFirewallRules,
                         ));
@@ -144,13 +131,13 @@ This requires administrator rights!",
             ),
             Page::Recommendations => page_content(
                 ui,
-                "Recommendations",
+                &tr("Recommendations"),
                 r"ALVR supports multiple types of PC hardware and headsets but not all might work correctly with default settings. Please try tweaking different settings like resolution, bitrate, encoder and others if your ALVR experience is not optimal.",
                 |_| (),
             ),
             Page::Finished => page_content(
                 ui,
-                "Finished",
+                &tr("Finished"),
                 r#"You can always restart this setup wizard from the "Installation" tab on the left."#,
                 |_| (),
             ),
@@ -161,14 +148,14 @@ This requires administrator rights!",
             ui.horizontal(|ui| {
                 ui.add_space(15.0);
                 if self.page == Page::Finished {
-                    if ui.button("Finish").clicked() {
+                    if ui.button(tr("Finish")).clicked() {
                         request = Some(SetupWizardRequest::Close { finished: true });
                     }
-                } else if ui.button("Next").clicked() {
+                } else if ui.button(tr("Next")).clicked() {
                     self.page = index_to_page(self.page as usize + 1);
                 }
                 if ui
-                    .add_visible(self.page != Page::Welcome, Button::new("Back"))
+                    .add_visible(self.page != Page::Welcome, Button::new(tr("Back")))
                     .clicked()
                 {
                     self.page = index_to_page(self.page as usize - 1);

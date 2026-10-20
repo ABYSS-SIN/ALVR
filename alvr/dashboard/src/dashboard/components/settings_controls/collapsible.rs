@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use super::NestingInfo;
 use alvr_packets::PathValuePair;
 use eframe::egui::Ui;
@@ -13,8 +14,8 @@ pub fn collapsible_button(
         unreachable!()
     };
 
-    if (*state_mut && ui.small_button("Expand").clicked())
-        || (!*state_mut && ui.small_button("Collapse").clicked())
+    if (*state_mut && ui.small_button(tr("Expand")).clicked())
+        || (!*state_mut && ui.small_button(tr("Collapse")).clicked())
     {
         *state_mut = !*state_mut;
         *request = super::get_single_value(

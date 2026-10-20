@@ -224,6 +224,12 @@ void Hmd::StartStreaming() {
     vr::VRDriverInput()->UpdateBooleanComponent(m_proximity, true, 0.0);
 
     if (m_streamComponentsInitialized) {
+#ifdef _WIN32
+        // The settings may have changed since the encoder was created
+        if (m_encoder) {
+            m_encoder->RequestReinitialize();
+        }
+#endif
         return;
     }
 

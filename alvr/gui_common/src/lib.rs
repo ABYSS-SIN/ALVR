@@ -1,4 +1,5 @@
 mod basic_components;
+pub mod i18n;
 pub mod theme;
 
 pub use basic_components::*;

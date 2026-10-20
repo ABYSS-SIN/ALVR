@@ -9,9 +9,11 @@
 #include "VideoEncoderNVENC.h"
 #include "VideoEncoderVPL.h"
 #include "alvr_server/Utils.h"
+#include <atomic>
 #include <d3d11.h>
 #include <d3d11_1.h>
 #include <map>
+#include <mutex>
 #include <wincodec.h>
 #include <wincodecsdk.h>
 #include <wrl.h>
@@ -65,7 +67,23 @@ public:
 
     void InsertIDR();
 
+    // Recreates the frame renderer and the video encoder with the current settings, so that
+    // changing encoder settings does not need a SteamVR restart. It is applied at the next frame
+    // submit, on the compositor thread: that is the only thread (besides the idle encoder thread)
+    // allowed to touch the shared D3D context.
+    void RequestReinitialize();
+
 private:
+    void Reinitialize();
+
+    std::shared_ptr<CD3DRender> m_d3dRender;
+    std::atomic<bool> m_reinitRequested { false };
+    // Protects m_FrameRender against SetViewParams() calls coming from another thread
+    std::mutex m_frameRenderMutex;
+    bool m_hasViewParams = false;
+    vr::HmdRect2_t m_projLeft = {}, m_projRight = {};
+    vr::HmdMatrix34_t m_eyeToHeadLeft = {}, m_eyeToHeadRight = {};
+
     CThreadEvent m_newFrameReady, m_encodeFinished;
     std::shared_ptr<VideoEncoder> m_videoEncoder;
     bool m_bExiting;

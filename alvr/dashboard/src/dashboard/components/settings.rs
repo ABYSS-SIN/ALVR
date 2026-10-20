@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use super::{
     NestingInfo, SettingControl,
     presets::{PresetControl, builtin_schema},
@@ -131,7 +132,7 @@ impl SettingsTab {
                         ui.selectable_value(
                             &mut self.selected_top_tab_id,
                             "presets".into(),
-                            RichText::new("Presets").raised().size(15.0),
+                            RichText::new(tr("Presets")).raised().size(15.0),
                         );
                         for entry in &mut self.top_level_entries {
                             ui.selectable_value(

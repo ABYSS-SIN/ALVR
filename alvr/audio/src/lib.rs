@@ -20,7 +20,12 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use rodio::{OutputStreamBuilder, Source};
-use std::{collections::VecDeque, sync::Arc, thread, time::Duration};
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+};
 
 pub use cpal::Device;
 
@@ -383,7 +388,15 @@ pub fn receive_samples_loop(
     average_buffer_frames_count: usize,
 ) -> Result<()> {
     let mut recovery_sample_buffer = vec![];
+    // Input debug: once per second, packets received and peak level since the last report
+    let mut report_start = Instant::now();
+    let (mut packets, mut peak) = (0u32, 0f32);
     while is_running() {
+        if report_start.elapsed() >= Duration::from_secs(1) {
+            info!("Mic input: {packets} packets/s, peak {peak:.3}");
+            report_start = Instant::now();
+            (packets, peak) = (0, 0.);
+        }
         let data = match receiver.recv(Duration::from_millis(500)) {
             Ok(data) => data,
             Err(ConnectionError::TryAgain(_)) => continue,
@@ -395,6 +408,9 @@ pub fn receive_samples_loop(
             .chunks_exact(2)
             .map(|c| i16::from_ne_bytes([c[0], c[1]]).to_sample::<f32>())
             .collect::<Vec<_>>();
+
+        packets += 1;
+        peak = new_samples.iter().fold(peak, |p, s| p.max(s.abs()));
 
         let mut sample_buffer_ref = sample_buffer.lock();
 

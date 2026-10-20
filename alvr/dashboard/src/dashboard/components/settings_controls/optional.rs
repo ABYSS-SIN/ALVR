@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use super::{NestingInfo, SettingControl, reset};
 use alvr_packets::PathValuePair;
 use alvr_session::settings_schema::SchemaNode;
@@ -58,8 +59,8 @@ impl Control {
         }
 
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-            if ui.selectable_value(set_mut, false, "Default").clicked()
-                || ui.selectable_value(set_mut, true, "Set").clicked()
+            if ui.selectable_value(set_mut, false, tr("Default")).clicked()
+                || ui.selectable_value(set_mut, true, tr("Set")).clicked()
             {
                 request = get_request(&self.nesting_info, *set_mut);
             }

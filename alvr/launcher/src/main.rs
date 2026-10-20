@@ -1,3 +1,6 @@
+// hide the console window on Windows
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod actions;
 mod ui;
 

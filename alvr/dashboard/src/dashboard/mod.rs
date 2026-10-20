@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 mod components;
 
 use self::components::{
@@ -198,7 +199,7 @@ impl eframe::App for Dashboard {
                 // todo: find a way to center both vertically and horizontally
                 ui.vertical_centered(|ui| {
                     ui.add_space(100.0);
-                    ui.heading(RichText::new("SteamVR is restarting").size(30.0));
+                    ui.heading(RichText::new(tr("SteamVR is restarting")).size(30.0));
                 });
             });
 
@@ -244,13 +245,13 @@ impl eframe::App for Dashboard {
                 .show(ui, |ui| {
                     ui.with_layout(Layout::top_down_justified(Align::Center), |ui| {
                         ui.add_space(13.0);
-                        ui.heading(RichText::new("ALVR").size(25.0).strong());
+                        ui.heading(RichText::new(tr("ALVR")).size(25.0).strong());
                         egui::warn_if_debug_build(ui);
                     });
 
                     ui.with_layout(Layout::top_down_justified(Align::Min), |ui| {
                         for (tab, label) in &self.tab_labels {
-                            ui.selectable_value(&mut self.selected_tab, *tab, *label);
+                            ui.selectable_value(&mut self.selected_tab, *tab, tr(label));
                         }
                     });
 
@@ -261,25 +262,25 @@ impl eframe::App for Dashboard {
                             ui.add_space(5.0);
 
                             if connected_to_server {
-                                if ui.button("Restart SteamVR").clicked() {
+                                if ui.button(tr("Restart SteamVR")).clicked() {
                                     self.restart_steamvr(&mut requests);
                                 }
-                            } else if ui.button("Launch SteamVR").clicked() {
+                            } else if ui.button(tr("Launch SteamVR")).clicked() {
                                 crate::steamvr_launcher::LAUNCHER.lock().launch_steamvr();
                             }
 
                             ui.horizontal(|ui| {
                                 ui.add_space(4.0);
-                                ui.label(RichText::new("SteamVR:").size(13.0));
+                                ui.label(RichText::new(tr("SteamVR:")).size(13.0));
                                 ui.add_space(-10.0);
                                 ui.with_layout(
                                     Layout::centered_and_justified(Direction::LeftToRight),
                                     |ui| {
                                         ui.label(
                                             if connected_to_server {
-                                                RichText::new("Connected").color(theme::OK_GREEN)
+                                                RichText::new(tr("Connected")).color(theme::OK_GREEN)
                                             } else {
-                                                RichText::new("Disconnected").color(theme::KO_RED)
+                                                RichText::new(tr("Disconnected")).color(theme::KO_RED)
                                             }
                                             .size(13.0),
                                         )
@@ -294,7 +295,7 @@ impl eframe::App for Dashboard {
                 .frame(Frame::new().inner_margin(Margin::same(20)).fill(theme::BG))
                 .show(ui, |ui| {
                     ui.with_layout(Layout::top_down_justified(Align::LEFT), |ui| {
-                        ui.heading(RichText::new(self.tab_labels[&self.selected_tab]).size(25.0));
+                        ui.heading(RichText::new(tr(self.tab_labels[&self.selected_tab])).size(25.0));
                         match self.selected_tab {
                             Tab::Devices => {
                                 requests.extend(self.connections_tab.ui(ui, connected_to_server));

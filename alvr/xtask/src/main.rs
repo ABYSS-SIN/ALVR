@@ -45,7 +45,7 @@ SUBCOMMANDS:
 
 FLAGS:
     --help              Print this text
-    --keep-config       Preserve the configuration file between rebuilds (session.json)
+    --reset-config      Discard the configuration file (session.json) on rebuild; kept by default
     --no-nvidia         Disables nVidia support on Linux. For prepare-deps subcommand
     --release           Optimized build with less debug checks. For build subcommands
     --profiling         Enable Profiling
@@ -181,7 +181,7 @@ fn main() {
         let is_nightly = args.contains("--nightly");
         let no_rebuild = args.contains("--no-rebuild");
         let for_ci = args.contains("--ci");
-        let keep_config = args.contains("--keep-config");
+        let keep_config = !args.contains("--reset-config");
         let link_stdcpp = !args.contains("--no-stdcpp");
         let all_targets = args.contains("--all-targets");
 

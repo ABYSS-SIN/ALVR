@@ -178,11 +178,28 @@ pub fn build_streamer(
         .unwrap();
     }
 
+    // Build the SteamVR dashboard overlay, shipped next to the dashboard
+    {
+        let _push_guard = sh.push_dir(afs::crate_dir("overlay"));
+        cmd!(sh, "cargo build {common_flags_ref...}").run().unwrap();
+
+        sh.copy_file(
+            artifacts_dir.join(afs::exec_fname("alvr_overlay")),
+            build_layout.dashboard_exe().with_file_name(afs::exec_fname("alvr_overlay")),
+        )
+        .unwrap();
+    }
+
     // copy dependencies
     if cfg!(windows) {
         sh.copy_file(
             afs::workspace_dir().join("openvr/bin/win64/openvr_api.dll"),
             build_layout.openvr_driver_lib_dir(),
+        )
+        .unwrap();
+        sh.copy_file(
+            afs::workspace_dir().join("openvr/bin/win64/openvr_api.dll"),
+            build_layout.executables_dir.clone(),
         )
         .unwrap();
 

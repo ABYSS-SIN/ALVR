@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 use alvr_common::{LogEntry, LogSeverity};
 use alvr_gui_common::theme::{self, log_colors};
 use alvr_session::Settings;
@@ -18,7 +19,6 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 const NO_NOTIFICATIONS_MESSAGE: &str = "No new notifications";
 const NOTIFICATION_TIPS: &[&str] = &[
     // The following tips are ordered roughtly in the order settings appear
-    r#"If you started having crashes after changing some settings, reset ALVR by re-running "Run setup wizard" from the "Installation" tab and clicking "Reset settings"."#,
     r#"Some settings are hidden by default. Click the "Expand" button next to some settings to expand the submenus."#,
     r#"It's highly advisable to keep audio settings as default in ALVR and modify the default audio device in the taskbar tray."#,
     r#"Increasing "Video"->"Maximum buffering" may reduce stutters at the cost of more latency."#,
@@ -141,10 +141,10 @@ impl NotificationBar {
         bottom_bar.show(ui, |ui| {
             ui.with_layout(Layout::right_to_left(alignment), |ui| {
                 if !self.expanded {
-                    if ui.small_button("Expand").clicked() {
+                    if ui.small_button(tr("Expand")).clicked() {
                         self.expanded = true;
                     }
-                } else if ui.button("Reduce").clicked() {
+                } else if ui.button(tr("Reduce")).clicked() {
                     self.expanded = false;
                 }
                 ui.with_layout(Layout::left_to_right(alignment), |ui| {

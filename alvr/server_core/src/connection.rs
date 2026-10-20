@@ -91,7 +91,10 @@ pub fn align_foveation_center_shift(center_shift: f32, edge_size: f32, edge_rati
     aligned.clamp(-1.0 + step, 1.0 - step)
 }
 
-// Compute a hash over all steamvr-restart settings and client-negotiated values.
+// Compute a hash over the settings that are only read when SteamVR registers its devices (HMD
+// resolution and refresh rate, controllers, trackers, GPU): changing them needs a SteamVR restart.
+// Encoder, foveation and color correction settings are not here: the driver rebuilds the encoder
+// on every connection.
 // The small SteamvrHmdInitConfig carries the negotiated resolution/fps; everything else comes from
 // Settings directly, using the same derivation as the old full SteamvrHmdInitConfig did.
 pub fn compute_restart_settings_hash(
@@ -142,51 +145,6 @@ pub fn compute_restart_settings_hash(
         .map(|c| c.sources.meta.prefer_full_body)
         .unwrap_or(false);
 
-    let mut foveation_eye_tracking = false;
-    let mut foveation_center_size_x = 0.0_f32;
-    let mut foveation_center_size_y = 0.0_f32;
-    let mut foveation_center_shift_x = 0.0_f32;
-    let mut foveation_center_shift_y = 0.0_f32;
-    let mut foveation_edge_ratio_x = 0.0_f32;
-    let mut foveation_edge_ratio_y = 0.0_f32;
-    let enable_foveated_encoding =
-        if let Switch::Enabled(config) = &settings.video.foveated_encoding {
-            foveation_eye_tracking = settings
-                .headset
-                .face_tracking
-                .as_option()
-                .is_some_and(|config| config.sink.eye_tracked_foveated_encoding);
-            [foveation_center_size_x, foveation_center_size_y] = config.center_size;
-            [foveation_center_shift_x, foveation_center_shift_y] = config.center_shift;
-            [foveation_edge_ratio_x, foveation_edge_ratio_y] = config.edge_ratio;
-            true
-        } else {
-            false
-        };
-
-    let mut brightness = 0.0_f32;
-    let mut contrast = 0.0_f32;
-    let mut saturation = 0.0_f32;
-    let mut gamma = 0.0_f32;
-    let mut sharpening = 0.0_f32;
-    let enable_color_correction = if let Switch::Enabled(config) = &settings.video.color_correction
-    {
-        brightness = config.brightness;
-        contrast = config.contrast;
-        saturation = config.saturation;
-        gamma = config.gamma;
-        sharpening = config.sharpening;
-        true
-    } else {
-        false
-    };
-
-    let nvenc = &settings.video.encoder_config.nvenc;
-    let amf = &settings.video.encoder_config.amf;
-    let hdr = &settings.video.encoder_config.hdr;
-    let enc = &settings.video.encoder_config;
-    let dbg = &settings.extra.logging.debug_groups;
-
     let mut h = DefaultHasher::new();
 
     // Negotiated fields (persisted in SteamvrHmdInitConfig)
@@ -203,63 +161,6 @@ pub fn compute_restart_settings_hash(
     settings.video.adapter_index.hash(&mut h);
     settings.headset.tracking_ref_only.hash(&mut h);
     settings.headset.enable_vive_tracker_proxy.hash(&mut h);
-    // Encoder / codec
-    (settings.video.preferred_codec as u8).hash(&mut h);
-    (enc.h264_profile as u32).hash(&mut h);
-    (enc.rate_control_mode as u32).hash(&mut h);
-    enc.filler_data.hash(&mut h);
-    (enc.entropy_coding as u32).hash(&mut h);
-    (enc.quality_preset as u32).hash(&mut h);
-    enc.enable_vbaq.hash(&mut h);
-    enc.use_10bit.hash(&mut h);
-    enc.encoding_gamma.map(f32::to_bits).hash(&mut h);
-    enc.software.force_software_encoding.hash(&mut h);
-    enc.software.thread_count.hash(&mut h);
-    // HDR
-    hdr.enable.hash(&mut h);
-    hdr.force_hdr_srgb_correction.hash(&mut h);
-    hdr.clamp_hdr_extended_range.hash(&mut h);
-    // AMF
-    amf.enable_pre_analysis.hash(&mut h);
-    amf.enable_hmqb.hash(&mut h);
-    amf.use_preproc.hash(&mut h);
-    amf.preproc_sigma.hash(&mut h);
-    amf.preproc_tor.hash(&mut h);
-    // NVENC
-    (nvenc.quality_preset as u32).hash(&mut h);
-    (nvenc.tuning_preset as u32).hash(&mut h);
-    (nvenc.multi_pass as u32).hash(&mut h);
-    (nvenc.adaptive_quantization_mode as u32).hash(&mut h);
-    nvenc.low_delay_key_frame_scale.hash(&mut h);
-    nvenc.refresh_rate.hash(&mut h);
-    nvenc.enable_intra_refresh.hash(&mut h);
-    nvenc.intra_refresh_period.hash(&mut h);
-    nvenc.intra_refresh_count.hash(&mut h);
-    nvenc.max_num_ref_frames.hash(&mut h);
-    nvenc.gop_length.hash(&mut h);
-    nvenc.p_frame_strategy.hash(&mut h);
-    nvenc.rate_control_mode.hash(&mut h);
-    nvenc.rc_buffer_size.hash(&mut h);
-    nvenc.rc_initial_delay.hash(&mut h);
-    nvenc.rc_max_bitrate.hash(&mut h);
-    nvenc.rc_average_bitrate.hash(&mut h);
-    nvenc.enable_weighted_prediction.hash(&mut h);
-    // Foveated encoding
-    enable_foveated_encoding.hash(&mut h);
-    foveation_eye_tracking.hash(&mut h);
-    foveation_center_size_x.to_bits().hash(&mut h);
-    foveation_center_size_y.to_bits().hash(&mut h);
-    foveation_center_shift_x.to_bits().hash(&mut h);
-    foveation_center_shift_y.to_bits().hash(&mut h);
-    foveation_edge_ratio_x.to_bits().hash(&mut h);
-    foveation_edge_ratio_y.to_bits().hash(&mut h);
-    // Color correction
-    enable_color_correction.hash(&mut h);
-    brightness.to_bits().hash(&mut h);
-    contrast.to_bits().hash(&mut h);
-    saturation.to_bits().hash(&mut h);
-    gamma.to_bits().hash(&mut h);
-    sharpening.to_bits().hash(&mut h);
     // Controllers
     controllers_enabled.hash(&mut h);
     controller_is_tracker.hash(&mut h);
@@ -268,20 +169,6 @@ pub fn compute_restart_settings_hash(
     // Body tracking
     body_tracking_vive_enabled.hash(&mut h);
     body_tracking_has_legs.hash(&mut h);
-    // Misc
-    settings.connection.minimum_idr_interval_ms.hash(&mut h);
-    settings.video.bitrate.image_corruption_fix.hash(&mut h);
-    // Debug groups
-    dbg.server_impl.hash(&mut h);
-    dbg.client_impl.hash(&mut h);
-    dbg.server_core.hash(&mut h);
-    dbg.client_core.hash(&mut h);
-    dbg.connection.hash(&mut h);
-    dbg.sockets.hash(&mut h);
-    dbg.server_gfx.hash(&mut h);
-    dbg.client_gfx.hash(&mut h);
-    dbg.encoder.hash(&mut h);
-    dbg.decoder.hash(&mut h);
 
     h.finish()
 }
@@ -873,16 +760,27 @@ fn connection_pipeline(
     let new_hash = compute_restart_settings_hash(&new_steamvr_hmd_init_config, &initial_settings);
     if session_manager_lock.session().restart_settings_hash != new_hash {
         let mut session = session_manager_lock.session_mut();
+        // SteamVR reads this when it starts, so it is stored in any case
         session.steamvr_hmd_init_config = new_steamvr_hmd_init_config;
-        session.restart_settings_hash = new_hash;
 
-        alvr_sockets::send_restart_signal(socket, stream_config_packet)?;
+        if crate::can_restart_driver() {
+            session.restart_settings_hash = new_hash;
 
-        crate::notify_restart_driver();
+            alvr_sockets::send_restart_signal(socket, stream_config_packet)?;
 
-        *lifecycle_state.write() = LifecycleState::ShuttingDown;
+            crate::notify_restart_driver();
 
-        return Ok(());
+            *lifecycle_state.write() = LifecycleState::ShuttingDown;
+
+            return Ok(());
+        }
+
+        // Without the dashboard nobody can restart SteamVR. The hash is left as it is, so that the
+        // restart is tried again at the next connection instead of being forgotten: otherwise the
+        // resolution and refresh rate shown in SteamVR would stay wrong until a manual restart.
+        warn!(
+            "Resolution, refresh rate or device settings changed, but the ALVR dashboard is not running: restart SteamVR to apply them."
+        );
     }
 
     let stream_protocol = if wired {
@@ -1375,6 +1273,11 @@ fn connection_pipeline(
                         ctx.events_sender
                             .send(ServerCoreEvent::ProximityState(headset_is_worn))
                             .ok();
+                    }
+                    ClientControlPacket::PacketLoss { received, lost } => {
+                        if let Some(stats) = &mut *ctx.statistics_manager.write() {
+                            stats.report_packet_loss(received, lost);
+                        }
                     }
                     ClientControlPacket::Reserved(_) | ClientControlPacket::ReservedBuffer(_) => (),
                 }

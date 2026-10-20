@@ -1,5 +1,5 @@
-// hide console window on Windows in release
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// hide the console window on Windows (logs go to the log file and the Logs tab)
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod dashboard;
 
@@ -73,6 +73,15 @@ fn main() {
         steamvr_launcher::LAUNCHER.lock().launch_steamvr()
     }
 
+    steamvr_launcher::spawn_client_watcher();
+
+    // The SteamVR settings panel waits for SteamVR by itself (and runs only once)
+    let mut overlay = std::env::current_exe()
+        .ok()
+        .map(|exe| exe.with_file_name(afs::exec_fname("alvr_overlay")))
+        .filter(|path| path.exists())
+        .and_then(|path| std::process::Command::new(path).spawn().ok());
+
     let ico = IconDir::read(Cursor::new(include_bytes!("../resources/dashboard.ico"))).unwrap();
     let image = ico.entries().first().unwrap().decode().unwrap();
 
@@ -111,6 +120,10 @@ fn main() {
         },
     )
     .unwrap();
+
+    if let Some(overlay) = &mut overlay {
+        overlay.kill().ok();
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

@@ -1,3 +1,4 @@
+use alvr_gui_common::i18n::tr;
 pub mod array;
 pub mod boolean;
 pub mod choice;
@@ -39,16 +40,16 @@ fn get_single_value(
 fn grid_flow_inline(ui: &mut Ui, allow_inline: bool) {
     if !allow_inline {
         // Note: ui.add_space() does not work
-        ui.label(" ");
+        ui.label(tr(" "));
     }
 }
 
 pub fn get_display_name(id: &str, strings: &HashMap<String, String>) -> String {
-    strings.get("display_name").cloned().unwrap_or_else(|| {
+    tr(&strings.get("display_name").cloned().unwrap_or_else(|| {
         let mut chars = id.chars();
         chars.next().unwrap().to_uppercase().collect::<String>()
             + chars.as_str().replace('_', " ").as_str()
-    })
+    }))
 }
 
 pub fn f64_eq(f1: f64, f2: f64) -> bool {
@@ -174,7 +175,7 @@ impl SettingControl {
             Self::Dictionary(control) => control.ui(ui, session_fragment, allow_inline),
             Self::None => {
                 grid_flow_inline(ui, allow_inline);
-                ui.add_enabled_ui(false, |ui| ui.label("Unimplemented UI"));
+                ui.add_enabled_ui(false, |ui| ui.label(tr("Unimplemented UI")));
 
                 None
             }

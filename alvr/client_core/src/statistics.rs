@@ -16,6 +16,8 @@ pub struct StatisticsManager {
     max_history_size: usize,
     prev_vsync: Instant,
     total_pipeline_latency_average: SlidingWindowAverage<Duration>,
+    video_packets_received: u64,
+    video_packets_lost: u64,
 }
 
 impl StatisticsManager {
@@ -28,7 +30,19 @@ impl StatisticsManager {
                 Duration::ZERO,
                 max_history_size,
             ),
+            video_packets_received: 0,
+            video_packets_lost: 0,
         }
+    }
+
+    pub fn report_video_packet_stream(&mut self, lost_packets: u32) {
+        self.video_packets_received += 1;
+        self.video_packets_lost += lost_packets as u64;
+    }
+
+    // (received, lost) stream packets since the connection started
+    pub fn packet_counters(&self) -> (u64, u64) {
+        (self.video_packets_received, self.video_packets_lost)
     }
 
     pub fn report_input_acquired(&mut self, target_timestamp: Duration) {

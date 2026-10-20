@@ -56,6 +56,10 @@ pub struct StatisticsManager {
     last_vsync_time: Instant,
     frame_interval: Duration,
     last_throughput_directives: BitrateDirectives,
+    // (received, lost) stream packets reported by the client, and their values at the previous
+    // full report. Stock clients do not report them: the loss stays at 0.
+    packet_counters: (u64, u64),
+    last_packet_counters: (u64, u64),
 }
 
 impl StatisticsManager {
@@ -86,7 +90,13 @@ impl StatisticsManager {
             last_vsync_time: Instant::now(),
             frame_interval: nominal_server_frame_interval,
             last_throughput_directives: BitrateDirectives::default(),
+            packet_counters: (0, 0),
+            last_packet_counters: (0, 0),
         }
+    }
+
+    pub fn report_packet_loss(&mut self, received: u64, lost: u64) {
+        self.packet_counters = (received, lost);
     }
 
     pub fn report_tracking_received(&mut self, target_timestamp: Duration) {
@@ -223,6 +233,21 @@ impl StatisticsManager {
 
                 let interval_secs = FULL_REPORT_INTERVAL.as_secs_f32();
 
+                let received = self
+                    .packet_counters
+                    .0
+                    .saturating_sub(self.last_packet_counters.0);
+                let lost = self
+                    .packet_counters
+                    .1
+                    .saturating_sub(self.last_packet_counters.1);
+                self.last_packet_counters = self.packet_counters;
+                let video_packet_loss_percent = if received + lost > 0 {
+                    lost as f32 * 100. / (received + lost) as f32
+                } else {
+                    0.
+                };
+
                 alvr_events::send_event(EventType::StatisticsSummary(StatisticsSummary {
                     video_packets_total: self.video_packets_total,
                     video_packets_per_sec: (self.video_packets_partial_sum as f32 / interval_secs)
@@ -231,6 +256,7 @@ impl StatisticsManager {
                     video_mbits_per_sec: self.video_bytes_partial_sum as f32 * 8.
                         / 1e6
                         / interval_secs,
+                    video_packet_loss_percent,
                     total_latency_ms: client_stats.total_pipeline_latency.as_secs_f32() * 1000.,
                     network_latency_ms: network_latency.as_secs_f32() * 1000.,
                     encode_latency_ms: encoder_latency.as_secs_f32() * 1000.,

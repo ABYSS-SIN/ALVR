@@ -49,6 +49,7 @@ const CONNECTION_TIMEOUT_MESSAGE: &str = "Connection timeout.";
 const SOCKET_INIT_RETRY_INTERVAL: Duration = Duration::from_millis(500);
 const CONNECTION_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const HANDSHAKE_ACTION_TIMEOUT: Duration = Duration::from_secs(2);
+const PACKET_LOSS_REPORT_INTERVAL: Duration = Duration::from_millis(500);
 const STREAMING_RECV_TIMEOUT: Duration = Duration::from_millis(500);
 
 const MAX_UNREAD_PACKETS: usize = 10; // Applies per stream
@@ -278,6 +279,7 @@ fn connection_pipeline(
         let ctx = Arc::clone(&ctx);
         move || {
             let mut stream_corrupted = true;
+            let mut last_loss_report = Instant::now();
             while is_streaming(&ctx) {
                 let data = match video_receiver.recv(STREAMING_RECV_TIMEOUT) {
                     Ok(data) => data,
@@ -290,6 +292,18 @@ fn connection_pipeline(
 
                 if let Some(stats) = &mut *ctx.statistics_manager.lock() {
                     stats.report_video_packet_received(header.timestamp);
+                    stats.report_video_packet_stream(data.lost_packets());
+
+                    if last_loss_report.elapsed() >= PACKET_LOSS_REPORT_INTERVAL {
+                        last_loss_report = Instant::now();
+
+                        let (received, lost) = stats.packet_counters();
+                        if let Some(sender) = &mut *ctx.control_sender.lock() {
+                            sender
+                                .send(&ClientControlPacket::PacketLoss { received, lost })
+                                .ok();
+                        }
+                    }
                 }
 
                 if header.is_idr {

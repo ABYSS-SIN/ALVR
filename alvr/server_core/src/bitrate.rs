@@ -193,10 +193,10 @@ impl BitrateManager {
                 bitrate_directives.scaled_calculated_throughput_bps = Some(throughput_bps);
 
                 if decoder_latency_limiter.enabled() {
-                    throughput_bps =
-                        f32::min(throughput_bps, self.dynamic_decoder_max_bytes_per_frame);
-                    bitrate_directives.decoder_latency_limiter_bps =
-                        Some(self.dynamic_decoder_max_bytes_per_frame);
+                    let max_bps = self.dynamic_decoder_max_bytes_per_frame * 8.0
+                        / frame_interval.as_secs_f32();
+                    throughput_bps = f32::min(throughput_bps, max_bps);
+                    bitrate_directives.decoder_latency_limiter_bps = Some(max_bps);
                 }
 
                 if let Switch::Enabled(max_ms) = max_network_latency_ms {
@@ -250,5 +250,47 @@ impl BitrateManager {
             },
             bitrate_directives,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alvr_session::DecoderLatencyLimiter;
+
+    // A decoder overstep must not collapse the bitrate: ~100 kB frames at 20 ms is ~40 Mbps.
+    #[test]
+    fn decoder_limiter_keeps_bitrate_in_bps() {
+        let mode = BitrateMode::Adaptive {
+            saturation_multiplier: 1.0,
+            max_throughput_mbps: Switch::Disabled,
+            min_throughput_mbps: Switch::Disabled,
+            max_network_latency_ms: Switch::Disabled,
+            encoder_latency_limiter: Switch::Disabled,
+            decoder_latency_limiter: Switch::Enabled(DecoderLatencyLimiter {
+                max_decoder_latency_ms: 30,
+                latency_overstep_frames: 90,
+                latency_overstep_multiplier: 0.99,
+            }),
+        };
+        let config = BitrateConfig {
+            mode: mode.clone(),
+            adapt_to_framerate: Switch::Disabled,
+            history_size: 256,
+            image_corruption_fix: false,
+        };
+        let mut m = BitrateManager::new(256, 60.0);
+        for i in 0..200u64 {
+            let ts = Duration::from_millis(i);
+            m.report_frame_encoded(ts, Duration::from_millis(3), 100_000);
+            m.report_frame_latencies(
+                &mode,
+                ts,
+                Duration::from_millis(20),
+                Duration::from_millis(40),
+            );
+        }
+        let (params, _) = m.get_encoder_params(&config).unwrap();
+        assert!(params.bitrate_bps > 1e6, "bitrate collapsed: {}", params.bitrate_bps);
     }
 }

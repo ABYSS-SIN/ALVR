@@ -123,7 +123,7 @@ H264 encoding is currently NOT supported on Intel ARC GPUs on Windows."
         ]
         .into_iter()
         .collect(),
-        flags: ["steamvr-restart".into()].into_iter().collect(),
+        flags: Default::default(),
         options: [("H264", "H264"), ("HEVC", "Hevc"), ("AV1", "AV1")]
             .into_iter()
             .map(|(key, val_codec)| HigherOrderChoiceOption {
@@ -151,7 +151,7 @@ pub fn encoder_preset_schema() -> PresetSchemaNode {
         )]
         .into_iter()
         .collect(),
-        flags: ["steamvr-restart".into()].into_iter().collect(),
+        flags: Default::default(),
         options: [
             ("Speed", "Speed", "P1"),
             ("Balanced", "Balanced", "P3"),
@@ -194,7 +194,7 @@ shutterring and high encode/decode latency!"
         )]
         .into_iter()
         .collect(),
-        flags: ["steamvr-restart".into()].into_iter().collect(),
+        flags: Default::default(),
         options: [
             ("Light", [0.80, 0.80], [8.0, 8.0]),
             ("Medium", [0.66, 0.60], [6.0, 6.0]),

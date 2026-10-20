@@ -51,6 +51,8 @@ pub mod graph_colors {
 }
 
 pub fn set_theme(ctx: &Context) {
+    crate::i18n::init();
+    crate::i18n::load_cjk_font(ctx);
     ctx.set_theme(ThemePreference::Dark);
 
     let mut style = (*ctx.global_style()).clone();

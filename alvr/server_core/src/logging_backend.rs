@@ -1,5 +1,5 @@
 use crate::SESSION_MANAGER;
-use alvr_common::{LogEntry, LogSeverity, log::LevelFilter};
+use alvr_common::{DebugGroupsConfig, LogEntry, LogSeverity, log::LevelFilter};
 use alvr_events::{Event, EventType};
 use chrono::Local;
 use fern::Dispatch;
@@ -9,6 +9,15 @@ use tokio::sync::broadcast;
 static CHANNEL_CAPACITY: usize = 256;
 pub static EVENTS_SENDER: LazyLock<broadcast::Sender<Event>> =
     LazyLock::new(|| broadcast::channel(CHANNEL_CAPACITY).0);
+
+// Read on every message so debug groups can be toggled without restarting SteamVR. Logging can
+// happen while the session is locked for writing: in that case use the last known config.
+fn current_debug_groups(fallback: &DebugGroupsConfig) -> DebugGroupsConfig {
+    SESSION_MANAGER
+        .try_read()
+        .map(|session| session.settings().extra.logging.debug_groups.clone())
+        .unwrap_or_else(|| fallback.clone())
+}
 
 pub fn init_logging(session_log_path: Option<PathBuf>, crash_log_path: Option<PathBuf>) {
     let debug_groups_config = SESSION_MANAGER
@@ -26,7 +35,10 @@ pub fn init_logging(session_log_path: Option<PathBuf>, crash_log_path: Option<Pa
             move |meta| {
                 !meta.target().starts_with("mdns_sd")
                     && (meta.level() <= LevelFilter::Info
-                        || alvr_common::filter_debug_groups(meta.target(), &debug_groups_config))
+                        || alvr_common::filter_debug_groups(
+                            meta.target(),
+                            &current_debug_groups(&debug_groups_config),
+                        ))
             }
         })
         .format(move |out, message, record| {
@@ -34,7 +46,10 @@ pub fn init_logging(session_log_path: Option<PathBuf>, crash_log_path: Option<Pa
             let event_type = if maybe_event.starts_with('{') && maybe_event.ends_with('}') {
                 serde_json::from_str(&maybe_event).unwrap()
             } else if record.level() == LevelFilter::Debug
-                && alvr_common::is_enabled_debug_group(record.target(), &debug_groups_config)
+                && alvr_common::is_enabled_debug_group(
+                    record.target(),
+                    &current_debug_groups(&debug_groups_config),
+                )
             {
                 EventType::DebugGroup {
                     group: record.target().to_string(),
