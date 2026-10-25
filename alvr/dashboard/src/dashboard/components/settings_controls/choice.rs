@@ -99,6 +99,22 @@ impl Control {
         }
     }
 
+    pub fn contains_text(&self, query: &str) -> bool {
+        self.variant_labels
+            .iter()
+            .any(|label| super::text_matches(&label.display, query))
+            || self
+                .variant_controls
+                .values()
+                .any(|control| control.contains_text(query))
+    }
+
+    pub fn collect_collapsible(&self, out: &mut Vec<Vec<alvr_packets::PathSegment>>) {
+        for control in self.variant_controls.values() {
+            control.collect_collapsible(out);
+        }
+    }
+
     pub fn ui(
         &mut self,
         ui: &mut Ui,

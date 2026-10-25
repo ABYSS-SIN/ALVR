@@ -40,3 +40,8 @@ nvml-wrapper = "0.12"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
+
+[dev-dependencies]
+egui-wgpu = "0.35"
+pollster = "0.4"
+png = "0.18"

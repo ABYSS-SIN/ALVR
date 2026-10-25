@@ -6,6 +6,8 @@ mod new_version_popup;
 mod notifications;
 mod settings;
 mod settings_controls;
+#[cfg(test)]
+mod settings_snapshot;
 mod setup_wizard;
 mod statistics;
 

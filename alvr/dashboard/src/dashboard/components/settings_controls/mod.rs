@@ -17,11 +17,34 @@ pub mod vector;
 
 use alvr_packets::{PathSegment, PathValuePair};
 use alvr_session::settings_schema::SchemaNode;
-use eframe::egui::Ui;
+use eframe::egui::{Id, Ui};
 use serde_json as json;
 use std::collections::HashMap;
 
 pub const INDENTATION_STEP: f32 = 20.0;
+
+// While a search is active, the (lowercase) query is shared with every control through the ui data
+const FILTER_ID: &str = "settings_filter";
+// Query that matches everything: used below an entry that matched by name
+pub const MATCH_ALL: &str = "\0";
+
+pub fn active_filter(ui: &Ui) -> Option<String> {
+    ui.data(|data| data.get_temp::<String>(Id::new(FILTER_ID)))
+        .filter(|query| !query.is_empty())
+}
+
+pub fn set_filter(ui: &Ui, query: Option<String>) {
+    ui.data_mut(|data| match query {
+        Some(query) => {
+            data.insert_temp(Id::new(FILTER_ID), query);
+        }
+        None => data.remove::<String>(Id::new(FILTER_ID)),
+    });
+}
+
+pub fn text_matches(text: &str, query: &str) -> bool {
+    query == MATCH_ALL || text.to_lowercase().contains(query)
+}
 
 fn get_single_value(
     nesting_info: &NestingInfo,
@@ -152,6 +175,28 @@ impl SettingControl {
                 default,
             )),
             _ => Self::None,
+        }
+    }
+
+    /// True if a setting below this control matches the search query.
+    pub fn contains_text(&self, query: &str) -> bool {
+        match self {
+            Self::Section(control) => control.contains_text(query),
+            Self::Choice(control) => control.contains_text(query),
+            Self::Optional(control) => control.contains_text(query),
+            Self::Switch(control) => control.contains_text(query),
+            _ => false,
+        }
+    }
+
+    /// Paths of the collapsible sections at or below this control.
+    pub fn collect_collapsible(&self, out: &mut Vec<Vec<PathSegment>>) {
+        match self {
+            Self::Section(control) => control.collect_collapsible(out),
+            Self::Choice(control) => control.collect_collapsible(out),
+            Self::Optional(control) => control.collect_collapsible(out),
+            Self::Switch(control) => control.collect_collapsible(out),
+            _ => (),
         }
     }
 

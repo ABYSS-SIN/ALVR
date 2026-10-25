@@ -41,6 +41,14 @@ impl Control {
         }
     }
 
+    pub fn contains_text(&self, query: &str) -> bool {
+        self.content_control.contains_text(query)
+    }
+
+    pub fn collect_collapsible(&self, out: &mut Vec<Vec<alvr_packets::PathSegment>>) {
+        self.content_control.collect_collapsible(out);
+    }
+
     pub fn ui(
         &mut self,
         ui: &mut Ui,
