@@ -84,22 +84,33 @@ impl Gui {
     /// Runs one egui frame and renders it. `events` use points coordinates.
     pub fn frame(&mut self, events: Vec<Event>, mut ui: impl FnMut(&mut egui::Ui)) -> &[u8] {
         let size_points = vec2(self.size[0] as f32, self.size[1] as f32) / self.pixels_per_point;
-        let raw_input = egui::RawInput {
-            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size_points)),
-            time: Some(self.start.elapsed().as_secs_f64()),
-            events,
-            ..Default::default()
+        let mut run = |events: Vec<Event>, time: f64| {
+            let raw_input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size_points)),
+                time: Some(time),
+                events,
+                ..Default::default()
+            };
+            self.ctx.run_ui(raw_input, |ui_root| {
+                egui::Frame::new()
+                    .fill(Color32::from_rgb(24, 24, 28))
+                    .inner_margin(24.0)
+                    .show(ui_root, |content| {
+                        content.set_min_size(content.available_size());
+                        ui(content);
+                    });
+            })
         };
 
-        let output = self.ctx.run_ui(raw_input, |ui_root| {
-            egui::Frame::new()
-                .fill(Color32::from_rgb(24, 24, 28))
-                .inner_margin(24.0)
-                .show(ui_root, |content| {
-                    content.set_min_size(content.available_size());
-                    ui(content);
-                });
-        });
+        // Glyphs first used by this frame (new digits in the stats...) only reach the font atlas
+        // after tessellation, so the texture update is in the *next* output: drawing the first one
+        // shows them blank for a frame. Run twice, upload the first output's textures, draw the second.
+        let time = self.start.elapsed().as_secs_f64();
+        let warmup = run(events, time);
+        self.ctx.tessellate(warmup.shapes, warmup.pixels_per_point);
+        let output = run(vec![], time);
+        let mut textures_delta = warmup.textures_delta;
+        textures_delta.append(output.textures_delta.clone());
 
         let jobs = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = ScreenDescriptor {
@@ -111,7 +122,7 @@ impl Gui {
         let queue = &self.state.queue;
         let mut renderer = self.state.renderer.write();
 
-        for (id, delta) in &output.textures_delta.set {
+        for (id, delta) in &textures_delta.set {
             renderer.update_texture(device, queue, *id, delta);
         }
 
@@ -157,7 +168,7 @@ impl Gui {
 
         queue.submit(extra.into_iter().chain([encoder.finish()]));
 
-        for id in &output.textures_delta.free {
+        for id in &textures_delta.free {
             renderer.free_texture(id);
         }
         drop(renderer);

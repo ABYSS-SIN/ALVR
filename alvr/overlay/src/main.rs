@@ -86,7 +86,8 @@ fn run_overlay(gui: &mut Gui, openvr: &OpenVr, server: &Server) {
             let mut commands = vec![];
             let pixels = {
                 let state = server.state.lock().unwrap();
-                gui.frame(events, |ui| commands = ui::panel(ui, &state))
+                // the ui runs twice per frame, clicks only show up in the first run
+                gui.frame(events, |ui| commands.extend(ui::panel(ui, &state)))
             };
             openvr.set_texture(pixels);
 
@@ -221,5 +222,61 @@ fn main() -> Result<()> {
             Ok(openvr) => run_overlay(&mut gui, &openvr, &server),
             Err(_) => thread::sleep(Duration::from_secs(2)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Same input must give the same pixels, otherwise the panel flickers in the headset
+    #[test]
+    fn idle_frames_are_stable() {
+        let session = serde_json::to_value(alvr_session::SessionConfig::default()).unwrap();
+        let state = State {
+            connected: true,
+            session: Some(session),
+            stats: Some((Instant::now(), Default::default())),
+        };
+
+        let mut gui = Gui::new(TEXTURE_SIZE, PIXELS_PER_POINT).unwrap();
+        let mut frames: Vec<Vec<u8>> = vec![];
+        for _ in 0..30 {
+            frames.push(gui.frame(vec![], |ui| _ = ui::panel(ui, &state)).to_vec());
+        }
+
+        // The first frames load fonts and settle the layout
+        let changed: Vec<usize> = (1..frames.len()).filter(|&i| frames[i] != frames[i - 1]).collect();
+        assert!(changed.iter().all(|&i| i < 4), "frames still changing at {changed:?}");
+    }
+
+    #[test]
+    fn stats_update_settles_in_one_frame() {
+        let session = serde_json::to_value(alvr_session::SessionConfig::default()).unwrap();
+        let state = |mbps: f32, ms: f32| State {
+            connected: true,
+            session: Some(session.clone()),
+            stats: Some((
+                Instant::now(),
+                alvr_events::StatisticsSummary {
+                    video_mbits_per_sec: mbps,
+                    total_latency_ms: ms,
+                    ..Default::default()
+                },
+            )),
+        };
+
+        let mut gui = Gui::new(TEXTURE_SIZE, PIXELS_PER_POINT).unwrap();
+        for _ in 0..5 {
+            gui.frame(vec![], |ui| _ = ui::panel(ui, &state(96.4, 38.0)));
+        }
+        let mut render = |s: &State| gui.frame(vec![], |ui| _ = ui::panel(ui, s)).to_vec();
+
+        // Wider numbers, then the same numbers again: the repeat must not move anything
+        let wide = state(1234.5, 1234.0);
+        let first = render(&wide);
+        let second = render(&wide);
+        let diff = first.iter().zip(&second).filter(|(a, b)| a != b).count();
+        assert_eq!(diff, 0, "layout needs more than one frame to settle");
     }
 }
