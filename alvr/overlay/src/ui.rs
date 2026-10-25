@@ -53,51 +53,92 @@ fn set(commands: &mut Vec<Command>, path: &str, value: impl Into<json::Value>) {
     });
 }
 
+const CARD_BG: Color32 = Color32::from_rgb(34, 35, 42);
+const MUTED: Color32 = Color32::from_gray(150);
+const BAD_RED: Color32 = Color32::from_rgb(235, 87, 87);
+const BUTTON_HEIGHT: f32 = 56.0;
+const TILE_COLUMNS: usize = 4;
+const TILE_HEIGHT: f32 = 62.0;
+
+// A titled box. `needs_restart` flags settings that SteamVR only reads at startup.
+fn card(ui: &mut Ui, text: &str, needs_restart: bool, content: impl FnOnce(&mut Ui)) {
+    egui::Frame::new()
+        .fill(CARD_BG)
+        .corner_radius(14.0)
+        .inner_margin(18.0)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(tr(text)).size(20.0).strong());
+                if needs_restart {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(tr("⚠ Applied after SteamVR restarts"))
+                                .color(theme::log_colors::WARNING_LIGHT)
+                                .size(15.0),
+                        );
+                    });
+                }
+            });
+            ui.add_space(6.0);
+            content(ui);
+        });
+}
+
+// Exclusive choices as equal width buttons, `per_row` per line. Returns the clicked index.
+fn choice_grid(
+    ui: &mut Ui,
+    selected: Option<usize>,
+    labels: &[String],
+    per_row: usize,
+) -> Option<usize> {
+    let gap = ui.spacing().item_spacing.x;
+    let width = (ui.available_width() - gap * (per_row - 1) as f32) / per_row as f32;
+    let mut clicked = None;
+
+    for (row, chunk) in labels.chunks(per_row).enumerate() {
+        ui.horizontal(|ui| {
+            for (i, label) in chunk.iter().enumerate() {
+                let index = row * per_row + i;
+                let button = egui::Button::selectable(
+                    selected == Some(index),
+                    RichText::new(label).size(19.0),
+                )
+                .frame_when_inactive(true);
+                if ui.add_sized([width, BUTTON_HEIGHT], button).clicked() {
+                    clicked = Some(index);
+                }
+            }
+        });
+    }
+    clicked
+}
+
 // "−  value  ＋" row. Returns the new value when a button is clicked.
-fn stepper(ui: &mut Ui, label: &str, shown: &str, current: u64) -> Option<u64> {
+fn stepper(ui: &mut Ui, shown: &str, current: u64) -> Option<u64> {
     let mut new_value = None;
+    let gap = ui.spacing().item_spacing.x;
+    let side = 84.0;
+    let middle = ui.available_width() - 2.0 * side - 2.0 * gap;
+
     ui.horizontal(|ui| {
-        ui.label(tr(label));
-        let size = egui::vec2(60.0, 44.0);
-        if ui.add(egui::Button::new("−").min_size(size)).clicked() {
+        let button = |text: &str| egui::Button::new(RichText::new(text).size(24.0));
+        if ui.add_sized([side, BUTTON_HEIGHT], button("−")).clicked() {
             new_value = Some(current.saturating_sub(BITRATE_STEP_MBPS));
         }
-        ui.label(shown);
-        if ui.add(egui::Button::new("＋").min_size(size)).clicked() {
+        ui.add_sized(
+            [middle, BUTTON_HEIGHT],
+            egui::Label::new(RichText::new(shown).size(26.0).strong()),
+        );
+        if ui.add_sized([side, BUTTON_HEIGHT], button("＋")).clicked() {
             new_value = Some(current + BITRATE_STEP_MBPS);
         }
     });
     new_value.map(|v| v.clamp(BITRATE_RANGE_MBPS.0, BITRATE_RANGE_MBPS.1))
 }
 
-// One row of exclusive choices. Returns the clicked index.
-fn choice_row(ui: &mut Ui, selected: Option<usize>, labels: &[String]) -> Option<usize> {
-    let mut clicked = None;
-    ui.horizontal_wrapped(|ui| {
-        for (i, label) in labels.iter().enumerate() {
-            let button = egui::Button::selectable(selected == Some(i), label)
-                .frame_when_inactive(true)
-                .min_size(egui::vec2(96.0, 44.0));
-            if ui.add(button).clicked() {
-                clicked = Some(i);
-            }
-        }
-    });
-    clicked
-}
-
-// Section title, optionally flagging settings that SteamVR only reads at startup
-fn title(ui: &mut Ui, text: &str, needs_restart: bool) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr(text)).strong());
-        if needs_restart {
-            ui.label(
-                RichText::new(tr("⚠ Applied after SteamVR restarts"))
-                    .color(theme::log_colors::WARNING_LIGHT)
-                    .small(),
-            );
-        }
-    });
+fn caption(ui: &mut Ui, text: &str) {
+    ui.label(RichText::new(text).color(MUTED).size(15.0));
 }
 
 fn resolution_commands(width_per_eye: u64) -> Vec<Command> {
@@ -110,11 +151,10 @@ fn resolution_commands(width_per_eye: u64) -> Vec<Command> {
     commands
 }
 
-pub fn panel(ui: &mut Ui, state: &State) -> Vec<Command> {
-    let mut commands = vec![];
-
-    ui.horizontal(|ui| {
-        ui.heading("ALVR");
+fn header(ui: &mut Ui, state: &State) {
+    let size = egui::vec2(ui.available_width(), 52.0);
+    ui.allocate_ui_with_layout(size, egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.label(RichText::new("ALVR").size(34.0).strong());
         let (text, color) = match (&state.connected, &state.stats) {
             (false, _) => (tr("Server not running"), Color32::GRAY),
             (true, Some((at, _))) if at.elapsed() < STATS_TIMEOUT => {
@@ -122,8 +162,21 @@ pub fn panel(ui: &mut Ui, state: &State) -> Vec<Command> {
             }
             (true, _) => (tr("Waiting for a headset"), theme::log_colors::WARNING_LIGHT),
         };
-        ui.label(RichText::new(format!("● {text}")).color(color));
+        egui::Frame::new()
+            .fill(color.gamma_multiply(0.18))
+            .corner_radius(20.0)
+            .inner_margin(egui::Margin::symmetric(14, 4))
+            .show(ui, |ui| {
+                ui.label(RichText::new(format!("● {text}")).color(color).size(18.0));
+            });
     });
+}
+
+pub fn panel(ui: &mut Ui, state: &State) -> Vec<Command> {
+    let mut commands = vec![];
+
+    header(ui, state);
+    ui.add_space(8.0);
 
     let Some(session) = &state.session else {
         ui.label(tr("Waiting for the ALVR server..."));
@@ -133,73 +186,90 @@ pub fn panel(ui: &mut Ui, state: &State) -> Vec<Command> {
     if let Some((at, stats)) = &state.stats
         && at.elapsed() < STATS_TIMEOUT
     {
-        stats_grid(ui, stats);
+        stat_tiles(ui, stats);
+        ui.add_space(8.0);
     }
 
-    ui.separator();
+    ui.columns(2, |columns| {
+        let [left, right] = columns else { unreachable!() };
 
-    // Bitrate: both modes are applied in real time
-    title(ui, "Bitrate mode", false);
-    let mode = get(session, BITRATE_MODE).and_then(|v| v.as_str());
-    let selected = BITRATE_MODES.iter().position(|(_, variant)| Some(*variant) == mode);
-    let labels: Vec<_> = BITRATE_MODES.iter().map(|(label, _)| tr(label)).collect();
-    if let Some(i) = choice_row(ui, selected, &labels) {
-        set(&mut commands, BITRATE_MODE, BITRATE_MODES[i].1);
-    }
+        card(left, "Bitrate mode", false, |ui| {
+            let mode = get(session, BITRATE_MODE).and_then(|v| v.as_str());
+            let selected = BITRATE_MODES.iter().position(|(_, variant)| Some(*variant) == mode);
+            let labels: Vec<_> = BITRATE_MODES.iter().map(|(label, _)| tr(label)).collect();
+            if let Some(i) = choice_grid(ui, selected, &labels, 2) {
+                set(&mut commands, BITRATE_MODE, BITRATE_MODES[i].1);
+            }
 
-    match mode {
-        Some("ConstantMbps") => {
-            let current = get(session, CONSTANT_BITRATE).and_then(|v| v.as_u64()).unwrap_or(0);
-            if let Some(value) = stepper(ui, "Bitrate", &format!("{current} Mbps"), current) {
-                set(&mut commands, CONSTANT_BITRATE, value);
+            ui.add_space(10.0);
+            match mode {
+                Some("ConstantMbps") => {
+                    let current =
+                        get(session, CONSTANT_BITRATE).and_then(|v| v.as_u64()).unwrap_or(0);
+                    caption(ui, &tr("Bitrate"));
+                    if let Some(value) = stepper(ui, &format!("{current} Mbps"), current) {
+                        set(&mut commands, CONSTANT_BITRATE, value);
+                    }
+                }
+                Some("Adaptive") => {
+                    let enabled =
+                        get(session, MAX_BITRATE_ENABLED).and_then(|v| v.as_bool()) == Some(true);
+                    let current = get(session, MAX_BITRATE)
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(DEFAULT_MAX_BITRATE_MBPS);
+                    let shown = if enabled { format!("{current} Mbps") } else { tr("Unlimited") };
+                    caption(ui, &tr("Maximum bitrate"));
+                    if let Some(value) = stepper(ui, &shown, current) {
+                        set(&mut commands, MAX_BITRATE_ENABLED, true);
+                        set(&mut commands, MAX_BITRATE, value);
+                    }
+                }
+                _ => (),
+            }
+        });
+
+        left.add_space(8.0);
+        card(left, "Codec", false, |ui| {
+            let codec = get(session, CODEC).and_then(|v| v.as_str());
+            let selected = CODECS.iter().position(|(_, variant)| Some(*variant) == codec);
+            let labels: Vec<_> = CODECS.iter().map(|(label, _)| label.to_string()).collect();
+            if let Some(i) = choice_grid(ui, selected, &labels, 3) {
+                set(&mut commands, CODEC, CODECS[i].1);
+            }
+        });
+
+        if state.stats.is_some() {
+            left.add_space(8.0);
+            let button = egui::Button::new(RichText::new(tr("Insert IDR")).size(19.0));
+            let width = left.available_width();
+            if left.add_sized([width, BUTTON_HEIGHT], button).clicked() {
+                commands.push(Command::InsertIdr);
             }
         }
-        Some("Adaptive") => {
-            let enabled =
-                get(session, MAX_BITRATE_ENABLED).and_then(|v| v.as_bool()) == Some(true);
-            let current = get(session, MAX_BITRATE)
-                .and_then(|v| v.as_u64())
-                .unwrap_or(DEFAULT_MAX_BITRATE_MBPS);
-            let shown = if enabled { format!("{current} Mbps") } else { tr("Unlimited") };
-            if let Some(value) = stepper(ui, "Maximum bitrate", &shown, current) {
-                set(&mut commands, MAX_BITRATE_ENABLED, true);
-                set(&mut commands, MAX_BITRATE, value);
+
+        card(right, "Resolution (width)", true, |ui| {
+            let width =
+                (get(session, RESOLUTION_MODE).and_then(|v| v.as_str()) == Some("Absolute"))
+                    .then(|| get(session, RESOLUTION_WIDTH).and_then(|v| v.as_u64()))
+                    .flatten();
+            let selected = RESOLUTIONS.iter().position(|(_, w)| Some(*w) == width);
+            let labels: Vec<_> = RESOLUTIONS.iter().map(|(label, _)| label.to_string()).collect();
+            if let Some(i) = choice_grid(ui, selected, &labels, 3) {
+                commands.extend(resolution_commands(RESOLUTIONS[i].1));
             }
-        }
-        _ => (),
-    }
+        });
 
-    title(ui, "Codec", false);
-    let codec = get(session, CODEC).and_then(|v| v.as_str());
-    let selected = CODECS.iter().position(|(_, variant)| Some(*variant) == codec);
-    let labels: Vec<_> = CODECS.iter().map(|(label, _)| label.to_string()).collect();
-    if let Some(i) = choice_row(ui, selected, &labels) {
-        set(&mut commands, CODEC, CODECS[i].1);
-    }
-
-    title(ui, "Resolution (width)", true);
-    let width = (get(session, RESOLUTION_MODE).and_then(|v| v.as_str()) == Some("Absolute"))
-        .then(|| get(session, RESOLUTION_WIDTH).and_then(|v| v.as_u64()))
-        .flatten();
-    let selected = RESOLUTIONS.iter().position(|(_, w)| Some(*w) == width);
-    let labels: Vec<_> = RESOLUTIONS.iter().map(|(label, _)| label.to_string()).collect();
-    if let Some(i) = choice_row(ui, selected, &labels) {
-        commands.extend(resolution_commands(RESOLUTIONS[i].1));
-    }
-
-    title(ui, "Frame rate", true);
-    let fps = get(session, FPS).and_then(|v| v.as_f64());
-    let selected = FRAMERATES.iter().position(|f| Some(*f as f64) == fps);
-    let labels: Vec<_> = FRAMERATES.iter().map(|f| format!("{f} Hz")).collect();
-    if let Some(i) = choice_row(ui, selected, &labels) {
-        set(&mut commands, FPS, FRAMERATES[i] as f64);
-    }
-    running_fps(ui, session, fps);
-
-    ui.separator();
-    if state.stats.is_some() && ui.button(tr("Insert IDR")).clicked() {
-        commands.push(Command::InsertIdr);
-    }
+        right.add_space(8.0);
+        card(right, "Frame rate", true, |ui| {
+            let fps = get(session, FPS).and_then(|v| v.as_f64());
+            let selected = FRAMERATES.iter().position(|f| Some(*f as f64) == fps);
+            let labels: Vec<_> = FRAMERATES.iter().map(|f| format!("{f} Hz")).collect();
+            if let Some(i) = choice_grid(ui, selected, &labels, 3) {
+                set(&mut commands, FPS, FRAMERATES[i] as f64);
+            }
+            running_fps(ui, session, fps);
+        });
+    });
 
     commands
 }
@@ -211,54 +281,98 @@ fn running_fps(ui: &mut Ui, session: &json::Value, setting: Option<f64>) {
         return;
     };
 
+    ui.add_space(6.0);
     let mismatch = setting.is_some_and(|setting| (setting - running).abs() > 0.5);
     let text = format!("{} {running:.0} Hz", tr("Current SteamVR refresh rate:"));
     if mismatch {
         ui.label(
             RichText::new(format!("{text} — {}", tr("Applied after reconnecting")))
                 .color(theme::log_colors::WARNING_LIGHT)
-                .small(),
+                .size(15.0),
         );
     } else {
-        ui.label(RichText::new(text).small());
+        caption(ui, &text);
     }
 }
 
-fn stats_grid(ui: &mut Ui, stats: &alvr_events::StatisticsSummary) {
-    egui::Grid::new("stats").num_columns(4).spacing([24.0, 8.0]).show(ui, |ui| {
-        let mut row = |a: String, va: String, b: String, vb: String| {
-            ui.label(a);
-            ui.label(va);
-            ui.label(b);
-            ui.label(vb);
-            ui.end_row();
-        };
+// Big value on top of a small label; the value is colored when it is worth a look
+fn tile(ui: &mut Ui, width: f32, label: &str, value: String, unit: &str, color: Color32) {
+    egui::Frame::new()
+        .fill(CARD_BG)
+        .corner_radius(12.0)
+        .inner_margin(14.0)
+        .show(ui, |ui| {
+            ui.set_width(width - 28.0);
+            ui.set_min_height(TILE_HEIGHT);
+            ui.vertical(|ui| {
+                ui.label(RichText::new(label.trim_end_matches(':')).color(MUTED).size(15.0));
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.label(RichText::new(value).size(30.0).strong().color(color));
+                    ui.label(RichText::new(unit).color(MUTED));
+                });
+            });
+        });
+}
 
-        row(
-            tr("Bitrate:"),
-            format!("{:.1} Mbps", stats.video_mbits_per_sec),
+fn stat_tiles(ui: &mut Ui, stats: &alvr_events::StatisticsSummary) {
+    let normal = theme::FG;
+    // Thresholds are rough: they only draw the eye to a number
+    let level = |value: f32, warn: f32, bad: f32| {
+        if value >= bad {
+            BAD_RED
+        } else if value >= warn {
+            theme::log_colors::WARNING_LIGHT
+        } else {
+            normal
+        }
+    };
+
+    let tiles = [
+        (tr("Bitrate:"), format!("{:.1}", stats.video_mbits_per_sec), "Mbps", normal),
+        (
             tr("Total latency:"),
-            format!("{:.0} ms", stats.total_latency_ms),
-        );
-        row(
-            tr("Transport latency:"),
-            format!("{:.1} ms", stats.network_latency_ms),
-            tr("Encoder latency:"),
-            format!("{:.1} ms", stats.encode_latency_ms),
-        );
-        row(
-            tr("Decoder latency:"),
-            format!("{:.1} ms", stats.decode_latency_ms),
+            format!("{:.0}", stats.total_latency_ms),
+            "ms",
+            level(stats.total_latency_ms, 60.0, 100.0),
+        ),
+        (
             tr("Packet loss:"),
-            format!("{:.2} %", stats.video_packet_loss_percent),
-        );
-        row(
-            tr("Client FPS:"),
-            format!("{}", stats.client_fps),
-            tr("Streamer FPS:"),
-            format!("{}", stats.server_fps),
-        );
-    });
+            format!("{:.2}", stats.video_packet_loss_percent),
+            "%",
+            level(stats.video_packet_loss_percent, 1.0, 5.0),
+        ),
+        (
+            tr("Transport latency:"),
+            format!("{:.1}", stats.network_latency_ms),
+            "ms",
+            level(stats.network_latency_ms, 20.0, 40.0),
+        ),
+        (
+            tr("Encoder latency:"),
+            format!("{:.1}", stats.encode_latency_ms),
+            "ms",
+            level(stats.encode_latency_ms, 15.0, 30.0),
+        ),
+        (
+            tr("Decoder latency:"),
+            format!("{:.1}", stats.decode_latency_ms),
+            "ms",
+            level(stats.decode_latency_ms, 15.0, 30.0),
+        ),
+        (tr("Client FPS:"), format!("{}", stats.client_fps), "fps", normal),
+        (tr("Streamer FPS:"), format!("{}", stats.server_fps), "fps", normal),
+    ];
+
+    let gap = ui.spacing().item_spacing.x;
+    let width = (ui.available_width() - gap * (TILE_COLUMNS - 1) as f32) / TILE_COLUMNS as f32;
+    for row in tiles.chunks(TILE_COLUMNS) {
+        ui.horizontal(|ui| {
+            for (label, value, unit, color) in row {
+                tile(ui, width, label, value.clone(), unit, *color);
+            }
+        });
+    }
 }
 
 #[cfg(test)]
